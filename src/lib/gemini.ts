@@ -17,6 +17,33 @@ export interface TemaGenerado {
   preguntas: string[];
 }
 
+// Models to try in order — 1.5-flash has the most generous free tier quota
+const MODELS = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"];
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function tryGenerateContent(
+  genAI: GoogleGenerativeAI,
+  modelName: string,
+  prompt: string
+): Promise<string> {
+  const model = genAI.getGenerativeModel({
+    model: modelName,
+    tools: [
+      {
+        googleSearchRetrieval: {
+          dynamicRetrievalConfig: { mode: DynamicRetrievalMode.MODE_DYNAMIC },
+        },
+      },
+    ],
+  });
+
+  const result = await model.generateContent(prompt);
+  return result.response.text();
+}
+
 export async function generarTema(
   intereses: string[],
   temasAnteriores: { titulo: string; semana: string }[]
@@ -24,15 +51,11 @@ export async function generarTema(
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "GEMINI_API_KEY no está configurada. Copia .env.example a .env.local y agrega tu clave."
+      "GEMINI_API_KEY no está configurada. Agrega tu clave en las variables de entorno."
     );
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
-    tools: [{ googleSearchRetrieval: { dynamicRetrievalConfig: { mode: DynamicRetrievalMode.MODE_DYNAMIC } } }],
-  });
 
   const interesesStr =
     intereses.length > 0
@@ -86,24 +109,41 @@ Responde ÚNICAMENTE con JSON válido (sin bloques markdown, sin texto extra):
   ]
 }`;
 
-  const result = await model.generateContent(prompt);
-  const text = result.response.text();
+  let lastError: Error = new Error("No se pudo generar el tema");
 
-  const cleaned = text
-    .replace(/^```(?:json)?\s*/m, "")
-    .replace(/\s*```$/m, "")
-    .trim();
+  for (const modelName of MODELS) {
+    try {
+      const text = await tryGenerateContent(genAI, modelName, prompt);
 
-  const match = cleaned.match(/\{[\s\S]*\}/);
-  if (!match) {
-    throw new Error(
-      "No se pudo generar el tema. Verifica tu API key e intenta nuevamente."
-    );
+      const cleaned = text
+        .replace(/^```(?:json)?\s*/m, "")
+        .replace(/\s*```$/m, "")
+        .trim();
+
+      const match = cleaned.match(/\{[\s\S]*\}/);
+      if (!match) {
+        throw new Error("Respuesta sin JSON válido");
+      }
+
+      return JSON.parse(match[0]) as TemaGenerado;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      const msg = lastError.message;
+
+      // On quota error, wait briefly then try next model
+      if (msg.includes("429") || msg.includes("quota") || msg.includes("Too Many Requests")) {
+        const retryMatch = msg.match(/retryDelay['":\s]+(\d+)/);
+        const waitMs = retryMatch ? Math.min(parseInt(retryMatch[1]) * 1000, 8000) : 3000;
+        await sleep(waitMs);
+        continue;
+      }
+
+      // Non-quota errors: don't retry with another model
+      throw new Error(`Error de Gemini: ${msg}`);
+    }
   }
 
-  try {
-    return JSON.parse(match[0]) as TemaGenerado;
-  } catch {
-    throw new Error("Error al procesar la respuesta de Gemini. Intenta nuevamente.");
-  }
+  throw new Error(
+    "Cuota de Gemini agotada en todos los modelos. Intenta en unos minutos o revisa tu plan en aistudio.google.com."
+  );
 }
