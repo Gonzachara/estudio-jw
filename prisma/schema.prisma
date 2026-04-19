@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Tema {
+  id          Int      @id @default(autoincrement())
+  titulo      String
+  descripcion String
+  citas       String   // JSON: Cita[]
+  aplicacion  String
+  preguntas   String   // JSON: string[]
+  intereses   String   // JSON: string[] — intereses usados al generar
+  semana      String   @unique // formato ISO "2025-W15"
+  createdAt   DateTime @default(now())
+}
+
+model Interes {
+  id        Int      @id @default(autoincrement())
+  nombre    String   @unique
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
