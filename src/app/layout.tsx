@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
+
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Estudio Semanal JW",
@@ -22,7 +25,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body className="bg-gradient-to-br from-indigo-50 via-white to-purple-50 min-h-screen">
+      <body className={`${inter.className} bg-gradient-to-br from-indigo-50 via-white to-purple-50 min-h-screen`}>
         {children}
         <Navigation />
       </body>
