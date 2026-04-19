@@ -1,0 +1,17 @@
+{
+  "name": "Estudio JW",
+  "short_name": "Estudio JW",
+  "description": "Adoración en familia",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#37352f",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

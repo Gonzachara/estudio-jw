@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  darkMode: "class",
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -8,22 +9,30 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      colors: {
+        n: {
+          bg:         "var(--n-bg)",
+          card:       "var(--n-card)",
+          border:     "var(--n-border)",
+          text:       "var(--n-text)",
+          text2:      "var(--n-text2)",
+          text3:      "var(--n-text3)",
+          accent:     "var(--n-accent)",
+          "accent-bg":"var(--n-accent-bg)",
+        },
+      },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
       },
       animation: {
-        "fade-in": "fadeIn 0.5s ease-in-out",
-        "slide-up": "slideUp 0.4s ease-out",
+        "fade-in":  "fadeIn 0.25s ease both",
+        "slide-up": "slideUp 0.3s ease both",
+        "scale-in": "scaleIn 0.2s ease both",
       },
       keyframes: {
-        fadeIn: {
-          "0%": { opacity: "0" },
-          "100%": { opacity: "1" },
-        },
-        slideUp: {
-          "0%": { opacity: "0", transform: "translateY(16px)" },
-          "100%": { opacity: "1", transform: "translateY(0)" },
-        },
+        fadeIn:  { from: { opacity: "0" },                                    to: { opacity: "1" } },
+        slideUp: { from: { opacity: "0", transform: "translateY(10px)" },     to: { opacity: "1", transform: "translateY(0)" } },
+        scaleIn: { from: { opacity: "0", transform: "scale(0.97)" },          to: { opacity: "1", transform: "scale(1)" } },
       },
     },
   },
