@@ -200,7 +200,7 @@ export default function TemaDisplay({
                 size={20}
                 className="group-hover:rotate-12 transition-transform duration-300"
               />
-              <span>Generar Tema Sorpresa</span>
+              <span>Hoy toca estudiar…</span>
             </>
           )}
         </button>
