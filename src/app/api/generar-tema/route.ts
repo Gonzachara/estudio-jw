@@ -61,9 +61,15 @@ export async function POST() {
       yaExistia: false,
     });
   } catch (error) {
-    console.error("Error generando tema:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+
+    // Log full detail to Vercel Function Logs
+    console.error("[generar-tema] ERROR:", message);
+    if (stack) console.error("[generar-tema] STACK:", stack);
+
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Error desconocido" },
+      { error: message },
       { status: 500 }
     );
   }
