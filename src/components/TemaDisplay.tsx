@@ -41,51 +41,52 @@ function CitaRow({ cita }: { cita: Cita }) {
   const Icon = TIPO_ICON[cita.tipo] ?? BookOpen;
 
   return (
-    <div className="py-3 first:pt-0 last:pb-0">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex-shrink-0 w-7 h-7 rounded-md bg-n-card
-                        flex items-center justify-center border border-n-border">
-          <Icon size={13} className="text-n-text2" />
+    <div className="group py-4 first:pt-0 last:pb-0">
+      <div className="flex items-start gap-4">
+        {/* Icono con indicador de tipo */}
+        <div className="mt-1 flex-shrink-0 w-9 h-9 rounded-xl bg-n-card 
+                        flex items-center justify-center border border-n-border
+                        group-hover:border-n-accent transition-colors shadow-sm">
+          <Icon size={16} className="text-n-accent" />
         </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2 flex-wrap">
-            <span className="text-xs font-semibold text-n-accent">{cita.publicacion}</span>
-            {cita.fecha && <span className="text-[11px] text-n-text3">{cita.fecha}</span>}
+            <span className="text-[10px] font-bold uppercase tracking-wider text-n-accent px-2 py-0.5 rounded-full bg-n-accent/10">
+              {cita.publicacion}
+            </span>
+            {cita.fecha && <span className="text-[11px] text-n-text3 font-medium">{cita.fecha}</span>}
           </div>
-          <p className="text-sm font-medium text-n-text mt-0.5 leading-snug">{cita.titulo}</p>
+          
+          <p className="text-[15px] font-semibold text-n-text mt-1 leading-tight">
+            {cita.titulo}
+          </p>
 
           {cita.descripcion && (
-            <>
-              <button
-                onClick={() => setOpen(!open)}
-                className="flex items-center gap-1 text-[11px] text-n-text3 mt-1.5
-                           hover:text-n-text2 transition-colors"
-              >
-                <ChevronDown
-                  size={11}
-                  className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-                />
-                {open ? "Ocultar" : "Ver detalle"}
-              </button>
-              {open && (
-                <p className="text-[12px] text-n-text2 mt-2 leading-relaxed animate-fade-in">
-                  {cita.descripcion}
-                </p>
-              )}
-            </>
+            <p className="text-[13px] text-n-text2 mt-2 leading-relaxed line-clamp-2 group-hover:line-clamp-none transition-all">
+              {cita.descripcion}
+            </p>
           )}
 
-          {cita.url && (
+          {/* EL ENLACE FORMATO BONITO */}
+          {cita.url ? (
             <a
               href={cita.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 mt-2 text-[11px]
-                         text-n-accent hover:underline underline-offset-2"
+              className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-lg
+                         bg-n-text text-white text-[12px] font-bold
+                         hover:bg-n-accent transition-all hover:shadow-md
+                         active:scale-95"
             >
-              Abrir en jw.org <ExternalLink size={9} />
+              <span>Estudiar recurso</span>
+              <ExternalLink size={14} strokeWidth={2.5} />
             </a>
+          ) : (
+            <div className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-lg
+                            bg-n-border/30 text-n-text3 text-[12px] font-medium cursor-not-allowed">
+               Referencia impresa
+            </div>
           )}
         </div>
       </div>
