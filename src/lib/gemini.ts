@@ -17,13 +17,12 @@ export interface TemaGenerado {
   preguntas: string[];
 }
 
-// Ordered by reliability and free-tier quota generosity
+// Ordered by reliability and free-tier quota generosity (updated April 2026)
 const MODELS = [
-  "gemini-1.5-pro-latest",
-  "gemini-1.5-flash-latest",
-  "gemini-1.5-pro",
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
   "gemini-1.5-flash",
-  "gemini-pro",
+  "gemini-1.5-pro",
 ];
 
 function sleep(ms: number) {
