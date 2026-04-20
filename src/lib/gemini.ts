@@ -15,14 +15,15 @@ export interface TemaGenerado {
   preguntas: string[];
 }
 
-// ─── Models: current stable models as of April 2026 ───────────────────────────
-// gemini-1.5-x  → SHUTDOWN (404)
-// gemini-2.0-x  → still live but shutting down June 1 2026
-// gemini-2.5-x  → current generation, recommended
+// ─── Models: strings exactos que funcionan en la API v1beta (Abril 2026) ───────
+// gemini-1.5-x              → MUERTOS (404) — no usar
+// gemini-2.0-flash          → Deprecado, muere el 1 Jun 2026
+// gemini-2.5-flash          → SIN alias estable aún, usar versión con fecha
+// gemini-2.5-flash-lite     → SIN alias estable aún, usar versión con fecha
 const MODELS = [
-  "gemini-2.5-flash",       // primary: latest stable, best free-tier quota
-  "gemini-2.5-flash-lite",  // fallback: highest RPM on free tier
-  "gemini-2.0-flash",       // last resort: still alive until June 2026
+  "gemini-2.5-flash-preview-04-17", // Más capaz, gratis con límites generosos
+  "gemini-2.5-flash-lite-preview-06-17", // Máximo RPM en free tier
+  "gemini-2.0-flash",               // Último recurso, vivo hasta Jun 2026
 ];
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -61,7 +62,11 @@ async function callGemini(
 }
 
 function isQuota(msg: string) {
-  return msg.includes("429") || msg.includes("quota") || msg.includes("RESOURCE_EXHAUSTED");
+  return (
+    msg.includes("429") ||
+    msg.includes("quota") ||
+    msg.includes("RESOURCE_EXHAUSTED")
+  );
 }
 
 function isNotFound(msg: string) {
@@ -131,9 +136,10 @@ Responde ÚNICAMENTE con JSON válido (sin bloques markdown, sin texto extra):
   let lastError: Error = new Error("Sin modelos disponibles");
 
   for (const model of MODELS) {
-    // Each model gets up to 2 attempts (immediate + one retry after delay)
+    // Cada modelo tiene hasta 2 intentos (inmediato + retry tras espera)
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
+        console.log(`[gemini] Intentando ${model} (intento ${attempt})`);
         const text = await callGemini(apiKey, model, prompt);
         const cleaned = text
           .replace(/^```(?:json)?\s*/m, "")
@@ -147,31 +153,31 @@ Responde ÚNICAMENTE con JSON válido (sin bloques markdown, sin texto extra):
         const msg = lastError.message;
 
         if (isNotFound(msg)) {
-          // Model is gone → skip to next model immediately, no retry
-          console.warn(`[gemini] ${model} → 404, skipping`);
+          // Modelo inexistente → pasar al siguiente sin reintentar
+          console.warn(`[gemini] ${model} → 404, saltando al siguiente modelo`);
           break;
         }
 
         if (isQuota(msg)) {
           if (attempt === 1) {
-            // First 429 → wait 6 seconds and retry same model once
-            console.warn(`[gemini] ${model} → 429, waiting 6s before retry`);
+            // Primer 429 → esperar 6s y reintentar el mismo modelo
+            console.warn(`[gemini] ${model} → 429, esperando 6s antes de reintentar`);
             await sleep(6000);
             continue;
           } else {
-            // Second 429 → give up on this model, try next
-            console.warn(`[gemini] ${model} → 429 again, moving to next model`);
+            // Segundo 429 → pasar al siguiente modelo
+            console.warn(`[gemini] ${model} → 429 de nuevo, cambiando de modelo`);
             break;
           }
         }
 
-        // Any other error → surface immediately (wrong key, network, bad JSON, etc.)
+        // Cualquier otro error (API key inválida, red, JSON roto, etc.) → fallar inmediatamente
         throw new Error(`Gemini (${model}): ${msg}`);
       }
     }
   }
 
   throw new Error(
-    "No se pudo generar el tema. Todos los modelos de Gemini respondieron con error de cuota o no están disponibles. Esperá un minuto y volvé a intentarlo."
+    `Todos los modelos de Gemini fallaron. Último error: ${lastError.message}`
   );
 }
