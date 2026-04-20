@@ -15,72 +15,24 @@ export interface TemaGenerado {
   preguntas: string[];
 }
 
-// ─── Models: strings exactos que funcionan en la API v1beta (Abril 2026) ───────
-// gemini-1.5-x              → MUERTOS (404) — no usar
-// gemini-2.0-flash          → Deprecado, muere el 1 Jun 2026
-// gemini-2.5-flash          → SIN alias estable aún, usar versión con fecha
-// gemini-2.5-flash-lite     → SIN alias estable aún, usar versión con fecha
-const MODELS = [
-  "gemini-2.5-flash-preview-04-17", // Más capaz, gratis con límites generosos
-  "gemini-2.5-flash-lite-preview-06-17", // Máximo RPM en free tier
-  "gemini-2.0-flash",               // Último recurso, vivo hasta Jun 2026
-];
+// ─── Groq AI (100% gratis) ───────────────────────────────────────────────────
+// 1. Ve a https://console.groq.com → API Keys → Create API Key
+// 2. En Vercel → Settings → Environment Variables agrega:
+//    GROQ_API_KEY = gsk_...
+// Sin tarjeta de crédito, sin límite de tiempo.
+// ─────────────────────────────────────────────────────────────────────────────
 
-const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
-
-function sleep(ms: number) {
-  return new Promise<void>((res) => setTimeout(res, ms));
-}
-
-async function callGemini(
-  apiKey: string,
-  model: string,
-  prompt: string
-): Promise<string> {
-  const url = `${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`;
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.9, maxOutputTokens: 1500 },
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`HTTP ${res.status}: ${body}`);
-  }
-
-  const data = await res.json();
-  const text: string | undefined =
-    data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-  if (!text) throw new Error("Respuesta vacía de Gemini");
-  return text;
-}
-
-function isQuota(msg: string) {
-  return (
-    msg.includes("429") ||
-    msg.includes("quota") ||
-    msg.includes("RESOURCE_EXHAUSTED")
-  );
-}
-
-function isNotFound(msg: string) {
-  return msg.includes("404") || msg.includes("NOT_FOUND");
-}
+const GROQ_API = "https://api.groq.com/openai/v1/chat/completions";
+const MODEL = "llama-3.3-70b-versatile"; // Gratis, muy capaz; fallback: llama-3.1-8b-instant
 
 export async function generarTema(
   intereses: string[],
   temasAnteriores: { titulo: string; semana: string }[]
 ): Promise<TemaGenerado> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "GEMINI_API_KEY no está configurada. Agrégala en Vercel → Settings → Environment Variables."
+      "GROQ_API_KEY no está configurada. Agrégala en Vercel → Settings → Environment Variables."
     );
   }
 
@@ -94,9 +46,10 @@ export async function generarTema(
       ? temasAnteriores.map((t, i) => `${i + 1}. "${t.titulo}"`).join("\n")
       : "Ninguno todavía — es su primer estudio juntos";
 
-  const prompt = `Eres un asistente espiritual para una pareja de Testigos de Jehová que estudia semanalmente usando jw.org.
+  const systemPrompt = `Eres un asistente espiritual para una pareja de Testigos de Jehová que estudia semanalmente usando jw.org.
+Responde ÚNICAMENTE con JSON válido, sin bloques markdown, sin texto extra, sin comentarios.`;
 
-MISIÓN: Generar UN tema de estudio espiritual específico, aleatorio y sorpresivo para esta semana.
+  const userPrompt = `MISIÓN: Generar UN tema de estudio espiritual específico, aleatorio y sorpresivo para esta semana.
 
 INTERESES DE LA PAREJA:
 ${interesesStr}
@@ -108,10 +61,10 @@ INSTRUCCIONES:
 - Elige el tema de manera completamente aleatoria entre los intereses — que sea una sorpresa real
 - Basa las citas en publicaciones REALES de jw.org: La Atalaya, ¡Despertad!, JW Broadcasting, libros de estudio, videos oficiales
 - El tema debe ser práctico y aplicable a la vida de pareja
-- Para las URLs, usa el patrón real de jw.org o deja vacío si no estás seguro
+- Para las URLs, usa el patrón real de jw.org o deja el campo vacío si no estás seguro
 - El lenguaje: cálido, personal, motivador
 
-Responde ÚNICAMENTE con JSON válido (sin bloques markdown, sin texto extra):
+Responde ÚNICAMENTE con este JSON válido:
 {
   "titulo": "Título concreto del tema",
   "descripcion": "2-3 oraciones sobre el tema y su relevancia para esta pareja",
@@ -133,51 +86,91 @@ Responde ÚNICAMENTE con JSON válido (sin bloques markdown, sin texto extra):
   ]
 }`;
 
-  let lastError: Error = new Error("Sin modelos disponibles");
+  // Modelos en orden de preferencia (todos 100% gratis en Groq)
+  const MODELS = [
+    "llama-3.3-70b-versatile",  // Mejor calidad, gratis
+    "llama-3.1-8b-instant",     // Más rápido, mayor cuota RPM
+    "gemma2-9b-it",             // Fallback adicional
+  ];
+
+  let lastError: Error = new Error("Error desconocido");
 
   for (const model of MODELS) {
-    // Cada modelo tiene hasta 2 intentos (inmediato + retry tras espera)
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        console.log(`[gemini] Intentando ${model} (intento ${attempt})`);
-        const text = await callGemini(apiKey, model, prompt);
+        console.log(`[groq] Intentando ${model} (intento ${attempt})`);
+
+        const res = await fetch(GROQ_API, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 1500,
+            temperature: 0.9,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+          }),
+        });
+
+        if (!res.ok) {
+          const body = await res.text();
+          throw new Error(`HTTP ${res.status}: ${body}`);
+        }
+
+        const data = await res.json();
+        const text: string | undefined = data?.choices?.[0]?.message?.content;
+        if (!text) throw new Error("Respuesta vacía de Groq");
+
         const cleaned = text
           .replace(/^```(?:json)?\s*/m, "")
           .replace(/\s*```$/m, "")
           .trim();
+
         const match = cleaned.match(/\{[\s\S]*\}/);
         if (!match) throw new Error("La respuesta no contiene JSON válido");
+
         return JSON.parse(match[0]) as TemaGenerado;
+
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         const msg = lastError.message;
 
-        if (isNotFound(msg)) {
-          // Modelo inexistente → pasar al siguiente sin reintentar
-          console.warn(`[gemini] ${model} → 404, saltando al siguiente modelo`);
+        // API key inválida → fallar inmediatamente
+        if (msg.includes("401") || msg.includes("invalid_api_key")) {
+          throw new Error(
+            `API key de Groq inválida. Verificá GROQ_API_KEY en Vercel. Detalle: ${msg}`
+          );
+        }
+
+        // Modelo no disponible → pasar al siguiente
+        if (msg.includes("404") || msg.includes("model_not_found")) {
+          console.warn(`[groq] ${model} → no disponible, probando siguiente`);
           break;
         }
 
-        if (isQuota(msg)) {
-          if (attempt === 1) {
-            // Primer 429 → esperar 6s y reintentar el mismo modelo
-            console.warn(`[gemini] ${model} → 429, esperando 6s antes de reintentar`);
-            await sleep(6000);
-            continue;
-          } else {
-            // Segundo 429 → pasar al siguiente modelo
-            console.warn(`[gemini] ${model} → 429 de nuevo, cambiando de modelo`);
-            break;
-          }
+        // Rate limit → esperar y reintentar una vez
+        if (msg.includes("429") && attempt === 1) {
+          console.warn(`[groq] ${model} → 429, esperando 8s...`);
+          await new Promise((r) => setTimeout(r, 8000));
+          continue;
         }
 
-        // Cualquier otro error (API key inválida, red, JSON roto, etc.) → fallar inmediatamente
-        throw new Error(`Gemini (${model}): ${msg}`);
+        // Segundo intento fallido → probar siguiente modelo
+        if (attempt === 2) {
+          console.warn(`[groq] ${model} → falló 2 veces, probando siguiente`);
+          break;
+        }
+
+        // Cualquier otro error → fallar inmediatamente
+        throw new Error(`Groq (${model}): ${msg}`);
       }
     }
   }
 
-  throw new Error(
-    `Todos los modelos de Gemini fallaron. Último error: ${lastError.message}`
-  );
+  throw new Error(`Todos los modelos de Groq fallaron. Último error: ${lastError.message}`);
 }
