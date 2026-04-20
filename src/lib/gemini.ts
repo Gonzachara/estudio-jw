@@ -14,7 +14,7 @@ export interface TemaGenerado {
   aplicacion: string;
   preguntas: string[];
 }
-─────────────────────────────────────────────────────────────────────────
+
 const GROQ_API = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL = "llama-3.3-70b-versatile"; // Gratis, muy capaz; fallback: llama-3.1-8b-instant
 
