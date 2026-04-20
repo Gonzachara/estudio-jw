@@ -14,14 +14,7 @@ export interface TemaGenerado {
   aplicacion: string;
   preguntas: string[];
 }
-
-// ─── Groq AI (100% gratis) ───────────────────────────────────────────────────
-// 1. Ve a https://console.groq.com → API Keys → Create API Key
-// 2. En Vercel → Settings → Environment Variables agrega:
-//    GROQ_API_KEY = gsk_...
-// Sin tarjeta de crédito, sin límite de tiempo.
-// ─────────────────────────────────────────────────────────────────────────────
-
+─────────────────────────────────────────────────────────────────────────
 const GROQ_API = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL = "llama-3.3-70b-versatile"; // Gratis, muy capaz; fallback: llama-3.1-8b-instant
 
@@ -58,10 +51,14 @@ TEMAS YA ESTUDIADOS (NO repetir):
 ${temasStr}
 
 INSTRUCCIONES:
+
 - Elige el tema de manera completamente aleatoria entre los intereses — que sea una sorpresa real
 - Basa las citas en publicaciones REALES de jw.org: La Atalaya, ¡Despertad!, JW Broadcasting, libros de estudio, videos oficiales
 - El tema debe ser práctico y aplicable a la vida de pareja
-- Para las URLs, usa el patrón real de jw.org o deja el campo vacío si no estás seguro
+- Para las URLs, DEBES intentar buscar el enlace real en jw.org. 
+- Si es un artículo de La Atalaya, usa: https://www.jw.org/es/biblioteca/revistas/
+- Si es un video, usa: https://www.jw.org/es/biblioteca/videos/
+- IMPORTANTE: Si no conoces la URL exacta, construye una búsqueda directa: https://www.jw.org/es/busqueda/?q=TITULO+DEL+RECURSO
 - El lenguaje: cálido, personal, motivador
 
 Responde ÚNICAMENTE con este JSON válido:
