@@ -1,5 +1,3 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
 export interface Cita {
   tipo: "articulo" | "video" | "libro" | "parrafo" | "discurso" | string;
   titulo: string;
@@ -17,7 +15,7 @@ export interface TemaGenerado {
   preguntas: string[];
 }
 
-// Ordered by reliability and free-tier quota generosity (updated April 2026)
+// Models ordered by preference — REST API, no SDK needed
 const MODELS = [
   "gemini-2.0-flash",
   "gemini-2.0-flash-lite",
@@ -25,21 +23,39 @@ const MODELS = [
   "gemini-1.5-pro",
 ];
 
-function sleep(ms: number) {
-  return new Promise((res) => setTimeout(res, ms));
-}
+const GEMINI_BASE =
+  "https://generativelanguage.googleapis.com/v1beta/models";
 
-function parseRetryDelay(msg: string): number {
-  const m = msg.match(/retryDelay['":\s]+(\d+)/);
-  return m ? Math.min(parseInt(m[1]) * 1000, 10_000) : 4_000;
-}
+async function callGemini(
+  apiKey: string,
+  model: string,
+  prompt: string
+): Promise<string> {
+  const url = `${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`;
 
-function isQuotaError(msg: string) {
-  return msg.includes("429") || msg.includes("quota") || msg.includes("Too Many Requests");
-}
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.9,
+        maxOutputTokens: 1500,
+      },
+    }),
+  });
 
-function isNotFoundError(msg: string) {
-  return msg.includes("404") || msg.includes("not found") || msg.includes("not supported");
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`HTTP ${res.status}: ${body}`);
+  }
+
+  const data = await res.json();
+  const text: string | undefined =
+    data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!text) throw new Error("Respuesta vacía de Gemini");
+  return text;
 }
 
 export async function generarTema(
@@ -48,10 +64,10 @@ export async function generarTema(
 ): Promise<TemaGenerado> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY no está configurada en las variables de entorno.");
+    throw new Error(
+      "GEMINI_API_KEY no está configurada. Agrégala en Vercel → Settings → Environment Variables."
+    );
   }
-
-  const genAI = new GoogleGenerativeAI(apiKey);
 
   const interesesStr =
     intereses.length > 0
@@ -77,10 +93,10 @@ INSTRUCCIONES:
 - Elige el tema de manera completamente aleatoria entre los intereses — que sea una sorpresa real
 - Basa las citas en publicaciones REALES de jw.org: La Atalaya, ¡Despertad!, JW Broadcasting, libros de estudio, videos oficiales
 - El tema debe ser práctico y aplicable a la vida de pareja
-- Para las URLs, usa el patrón real de jw.org (ej: https://www.jw.org/es/biblioteca/revistas/...) o deja vacío si no estás seguro
+- Para las URLs, usa el patrón real de jw.org o deja vacío si no estás seguro
 - El lenguaje: cálido, personal, motivador
 
-Responde ÚNICAMENTE con JSON válido (sin bloques markdown):
+Responde ÚNICAMENTE con JSON válido (sin bloques markdown, sin texto extra):
 {
   "titulo": "Título concreto del tema",
   "descripcion": "2-3 oraciones sobre el tema y su relevancia para esta pareja",
@@ -102,42 +118,41 @@ Responde ÚNICAMENTE con JSON válido (sin bloques markdown):
   ]
 }`;
 
-  let lastError: Error = new Error("No se pudo generar el tema");
+  let lastError: Error = new Error("Sin modelos disponibles");
 
-  for (const modelName of MODELS) {
+  for (const model of MODELS) {
     try {
-      const model = genAI.getGenerativeModel({ model: modelName });
-      const result = await model.generateContent(prompt);
-      const text = result.response.text();
+      const text = await callGemini(apiKey, model, prompt);
 
+      // Strip markdown fences if present
       const cleaned = text
         .replace(/^```(?:json)?\s*/m, "")
         .replace(/\s*```$/m, "")
         .trim();
 
       const match = cleaned.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error("Respuesta sin JSON válido");
+      if (!match) throw new Error("La respuesta no contiene JSON válido");
 
       return JSON.parse(match[0]) as TemaGenerado;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
-      const msg = lastError.message.toLowerCase();
+      const msg = lastError.message;
 
-      if (isNotFoundError(msg)) {
-        // Model not available → try next silently
-        continue;
-      }
-      if (isQuotaError(msg)) {
-        // Wait suggested delay then try next model
-        await sleep(parseRetryDelay(lastError.message));
-        continue;
-      }
-      // Unexpected error → surface it
-      throw new Error(`Error de Gemini: ${lastError.message}`);
+      // 404 = model not found → try next
+      if (msg.includes("404")) continue;
+
+      // 429 = quota exceeded → try next model
+      if (msg.includes("429") || msg.includes("quota")) continue;
+
+      // 400 with "not found" in body → try next
+      if (msg.includes("400") && msg.toLowerCase().includes("not found")) continue;
+
+      // Any other error → propagate immediately
+      throw new Error(`Gemini (${model}): ${msg}`);
     }
   }
 
   throw new Error(
-    "Cuota de Gemini agotada. Intenta en unos minutos o verifica tu plan en aistudio.google.com."
+    `Todos los modelos de Gemini fallaron. Último error: ${lastError.message}`
   );
 }
